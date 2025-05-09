@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+    <meta charset="UTF-8">
+    <title>סימולטור מעבר קול בחומרים שונים</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+            direction: rtl;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        canvas {
+            border: 1px solid #333;
+            margin-top: 20px;
+            background-color: #f0f0f0;
+        }
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+        .material-btn {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            font-size: 16px;
+        }
+        .material-btn:hover {
+            opacity: 0.9;
+        }
+        .air { background-color: #A0D2F0; }
+        .water { background-color: #4A90E2; color: white; }
+        .wood { background-color: #A77B45; color: white; }
+        .steel { background-color: #8E9193; color: white; }
+        .concrete { background-color: #919191; color: white; }
+        .info-panel {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+            text-align: right;
+        }
+        .play-btn {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        .play-btn:hover {
+            background-color: #45a049;
+        }
+        .frequency-control {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        label {
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>סימולטור מעבר קול בחומרים שונים</h1>
+        
+        <div class="controls">
+            <button id="playBtn" class="play-btn">הפעל סימולציה</button>
+            <button id="pauseBtn" class="play-btn" style="background-color: #f44336;">עצור</button>
+        </div>
+        
+        <div class="frequency-control">
+            <label for="frequencySlider">תדירות גל הקול (Hz):</label>
+            <input type="range" id="frequencySlider" min="1" max="10" value="2" step="0.1">
+            <span id="frequencyValue">2.0</span>
+        </div>
+        
+        <h3>לחץ על חומר כדי לראות את התנהגות הקול בו:</h3>
+        <div class="controls">
+            <button class="material-btn air" data-material="air">אוויר (343 מ'/שנייה)</button>
+            <button class="material-btn water" data-material="water">מים (1481 מ'/שנייה)</button>
+            <button class="material-btn wood" data-material="wood">עץ (3300 מ'/שנייה)</button>
+            <button class="material-btn steel" data-material="steel">פלדה (5100 מ'/שנייה)</button>
+            <button class="material-btn concrete" data-material="concrete">בטון (3600 מ'/שנייה)</button>
+        </div>
+        
+        <canvas id="waveCanvas" width="700" height="300"></canvas>
+        
+        <div class="info-panel">
+            <h3 id="materialTitle">אוויר - מהירות קול: 343 מ'/שנייה</h3>
+            <p id="materialDescription">
+                הקול מתפשט באוויר באמצעות גלי לחץ. האוויר הוא תווך בעל צפיפות נמוכה ולכן מהירות הקול בו נמוכה יחסית.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('waveCanvas');
+        const ctx = canvas.getContext('2d');
+        const playBtn = document.getElementById('playBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const frequencySlider = document.getElementById('frequencySlider');
+        const frequencyValueSpan = document.getElementById('frequencyValue');
+        const materialTitle = document.getElementById('materialTitle');
+        const materialDescription = document.getElementById('materialDescription');
+        
+        let isPlaying = false;
+        let animationId = null;
+        
+        // Physical properties of different materials (speed of sound in m/s)
+        const materials = {
+            air: { 
+                speed: 343, 
+                name: "אוויר", 
+                description: "הקול מתפשט באוויר באמצעות גלי לחץ. האוויר הוא תווך בעל צפיפות נמוכה ולכן מהירות הקול בו נמוכה יחסית.",
+                color: "#A0D2F0"
+            },
+            water: { 
+                speed: 1481, 
+                name: "מים", 
+                description: "במים, הקול מתפשט מהר יותר מאשר באוויר בגלל הצפיפות והקשיחות הגבוהה יותר של התווך. האנרגיה האקוסטית מועברת ביעילות רבה יותר.",
+                color: "#4A90E2"
+            },
+            wood: { 
+                speed: 3300, 
+                name: "עץ", 
+                description: "בעץ, הקול מתפשט באמצעות התרופפות וכיווץ של המבנה המולקולרי. המבנה הסיבי של העץ מאפשר העברת קול בצורה יעילה לאורך כיוון הסיבים.",
+                color: "#A77B45"
+            },
+            steel: { 
+                speed: 5100, 
+                name: "פלדה", 
+                description: "פלדה היא חומר קשיח מאוד עם קשרים מולקולריים חזקים, מה שמאפשר לגלי קול לנוע במהירות גבוהה מאוד. פלדה היא מוליך מצוין של קול.",
+                color: "#8E9193"
+            },
+            concrete: { 
+                speed: 3600, 
+                name: "בטון", 
+                description: "בטון הוא חומר צפוף ומוצק המאפשר לגלי קול לעבור במהירות גבוהה. עם זאת, המבנה הנקבובי שלו יכול לגרום לספיגה ופיזור של הקול.",
+                color: "#919191"
+            }
+        };
+        
+        let currentMaterial = materials.air;
+        let phase = 0;
+        let frequency = 2;
+        
+        // Initialize the wave display
+        function init() {
+            frequencySlider.addEventListener('input', function() {
+                frequency = parseFloat(this.value);
+                frequencyValueSpan.textContent = frequency.toFixed(1);
+                if (!isPlaying) {
+                    drawWave();
+                }
+            });
+            
+            document.querySelectorAll('.material-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const material = this.getAttribute('data-material');
+                    currentMaterial = materials[material];
+                    updateInfoPanel();
+                    if (!isPlaying) {
+                        drawWave();
+                    }
+                });
+            });
+            
+            playBtn.addEventListener('click', startAnimation);
+            pauseBtn.addEventListener('click', stopAnimation);
+            
+            drawWave();
+            updateInfoPanel();
+        }
+        
+        function updateInfoPanel() {
+            materialTitle.textContent = `${currentMaterial.name} - מהירות קול: ${currentMaterial.speed} מ'/שנייה`;
+            materialDescription.textContent = currentMaterial.description;
+        }
+        
+        function drawWave() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Scale factor to visualize different speeds
+            const baseSpeedFactor = 343; // Speed of sound in air (reference)
+            const speedFactor = currentMaterial.speed / baseSpeedFactor;
+            
+            // Draw material representation
+            ctx.fillStyle = currentMaterial.color;
+            ctx.globalAlpha = 0.2;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.globalAlpha = 1.0;
+            
+            // Draw wave
+            ctx.beginPath();
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            
+            const amplitude = 50;
+            const wavelength = (canvas.width / 5) * speedFactor; // Adjust wavelength based on material speed
+            
+            for (let x = 0; x < canvas.width; x++) {
+                const y = canvas.height / 2 + amplitude * Math.sin((x / wavelength * 2 * Math.PI * frequency) + phase);
+                
+                if (x === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            
+            ctx.stroke();
+            
+            // Draw source
+            ctx.beginPath();
+            ctx.arc(30, canvas.height / 2, 15, 0, 2 * Math.PI);
+            ctx.fillStyle = isPlaying ? 'red' : '#333';
+            ctx.fill();
+            
+            // Draw particles
+            const particleCount = 20;
+            const particleSpacing = canvas.width / particleCount;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const x = i * particleSpacing + particleSpacing / 2;
+                const baseY = canvas.height / 2;
+                const displacement = amplitude * Math.sin((x / wavelength * 2 * Math.PI * frequency) + phase);
+                const y = baseY + displacement;
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 5, 0, 2 * Math.PI);
+                ctx.fillStyle = '#333';
+                ctx.fill();
+                
+                // Draw vertical line to show displacement
+                ctx.beginPath();
+                ctx.moveTo(x, baseY);
+                ctx.lineTo(x, y);
+                ctx.strokeStyle = '#666';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+        }
+        
+        function animate() {
+            phase += 0.05 * (currentMaterial.speed / 343); // Adjust phase change by material speed
+            drawWave();
+            
+            if (isPlaying) {
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+        
+        function startAnimation() {
+            if (!isPlaying) {
+                isPlaying = true;
+                animate();
+            }
+        }
+        
+        function stopAnimation() {
+            isPlaying = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+        }
+        
+        // Start the simulator
+        init();
+    </script>
+</body>
+</html>
